@@ -104,3 +104,75 @@ def track_ang_vel_z_world_exp(
     asset = env.scene[asset_cfg.name]
     ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_w[:, 2])
     return torch.exp(-ang_vel_error / std**2)
+
+
+
+def ankle_flat(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize feet sliding.
+
+    This function penalizes the agent for sliding its feet on the ground. The reward is computed as the
+    norm of the linear velocity of the feet multiplied by a binary contact sensor. This ensures that the
+    agent is penalized only when the feet are in contact with the ground.
+    """
+    asset = env.scene[asset_cfg.name]
+    body_vel = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
+    ankle_angle = asset.data.joint_pos[:,14:16]
+    # reward = torch.sum(body_vel.norm(dim=-1) * contacts, dim=1)
+    reward = torch.sum(torch.abs(ankle_angle), dim=1)
+    return reward
+
+
+def joint_pos_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize joint positions if they cross the soft limits.
+
+    This is computed as a sum of the absolute value of the difference between the joint position and the soft limits.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # compute out of limits constraints
+    # out_of_limits = -(
+    #     asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 0]
+    # ).clip(max=0.0)
+    # out_of_limits += (
+    #     asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 1]
+    # ).clip(min=0.0)
+    # print(asset.data.joint_pos[:, asset_cfg.joint_ids].shape)
+    # print(asset.data.joint_pos[:, :4])
+    # fl = ( asset.data.joint_pos[:, 0] ).clip(max=0.0)
+    # rl = ( asset.data.joint_pos[:, 2] ).clip(max=0.0)
+    # fr = -( asset.data.joint_pos[:, 1] ).clip(min=0.0)
+    # rr = -( asset.data.joint_pos[:, 3] ).clip(min=0.0)
+
+    # out_of_limits_RR = -(asset.data.joint_pos[:, 6] - 1.0).clip(min=0.0)
+    # out_of_limits_RL = -(asset.data.joint_pos[:, 7] - 1.0).clip(min=0.0)
+
+    # out_of_limits_RR_min = (asset.data.joint_pos[:, 6] - 0).clip(max=0.0)
+    # out_of_limits_RL_min = (asset.data.joint_pos[:, 7] - 0).clip(max=0.0)
+
+    # calf_limits_RR_min = (-1.5 - asset.data.joint_pos[:, 10] ).clip(max=0.0)
+    # calf_limits_RL_min = (-1.5 - asset.data.joint_pos[:, 11] ).clip(max=0.0)
+
+
+
+    out_of_limits_FR = -(asset.data.joint_pos[:, 12] - 1).clip(min=0.0)
+    out_of_limits_FL = -(asset.data.joint_pos[:, 13] - 1).clip(min=0.0)
+
+    out_of_limits_FR_min = (asset.data.joint_pos[:, 12] + 1).clip(max=0.0)
+    out_of_limits_FL_min = (asset.data.joint_pos[:, 13] + 1).clip(max=0.0)
+
+    # calf_limits_FR_min = (-1.5 - asset.data.joint_pos[:, 8] ).clip(max=0.0)
+    # calf_limits_FL_min = (-1.5 - asset.data.joint_pos[:, 9] ).clip(max=0.0)
+
+    # print(asset.data.joint_pos[:, [6,7]])
+    # ooo
+
+    
+    # print(fl,rl,fr,rr,"--------")
+    # print(asset.data.soft_joint_pos_limits,"=======================")
+    # print(asset.data.joint_names,"=======================") ['FL_hip_joint', 'FR_hip_joint', 'RL_hip_joint', 'RR_hip_joint', 'FL_thigh_joint', 'FR_thigh_joint', 'RL_thigh_joint', 'RR_thigh_joint', 'FL_calf_joint', 'FR_calf_joint', 'RL_calf_joint', 'RR_calf_joint']
+
+    # print(asset_cfg.joint_ids)
+    # out_of_limits =  #fl + rl + fr + rr + out_of_limits_RR+ out_of_limits_RL + out_of_limits_RR_min + out_of_limits_RL_min + calf_limits_RR_min + calf_limits_RL_min\
+    out_of_limits = out_of_limits_FR + out_of_limits_FL + out_of_limits_FR_min + out_of_limits_FL_min  #+ calf_limits_FR_min + calf_limits_FL_min
+    return  out_of_limits #torch.sum(out_of_limits)
+

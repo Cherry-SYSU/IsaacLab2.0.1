@@ -3,6 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Wrapper to configure a :class:`ManagerBasedRLEnv` or :class:`DirectRlEnv` instance to RSL-RL vectorized environment.
+
+The following example shows how to wrap an environment for RSL-RL:
+
+.. code-block:: python
+
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+    env = RslRlVecEnvWrapper(env)
+
+"""
+
+
 import gymnasium as gym
 import torch
 
@@ -160,8 +173,23 @@ class RslRlVecEnvWrapper(VecEnv):
         return obs_dict["policy"], {"observations": obs_dict}
 
     def step(self, actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+         # bruce actions add hand
+        temp_action  = torch.zeros((self.num_envs,16),device="cuda:0")
+        # print(actions.shape)
+        # print(temp_action.shape)
+        # print(temp_action[:,0,1,4,5,8,9,12,13,14,15].shape)
+        col = [0,1,4,5,8,9] + list(range(12,16))
+        temp_action[:,col] = actions
+        
+        temp_action[:,2] = 0
+        temp_action[:,3] = 0
+        temp_action[:,6] = 0
+        temp_action[:,7] = 0
+        temp_action[:,10] = 0
+        temp_action[:,11] = 0
         # record step information
-        obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+        # record step information
+        obs_dict, rew, terminated, truncated, extras = self.env.step(temp_action)#step func is from ManagerBasedRLEnv
         # compute dones for compatibility with RSL-RL
         dones = (terminated | truncated).to(dtype=torch.long)
         # move extra observations to the extras dict
